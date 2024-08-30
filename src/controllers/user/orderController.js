@@ -82,4 +82,22 @@ const orderProduct = async(req,res)=>{
     }
 }
 
-module.exports = {orderProduct}
+
+const orderList = async(req,res)=>{
+    try {
+        const loggedInUserId = req.user.id;
+
+        const [orders] = await db.query(
+            'SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC LIMIT 5',
+            [loggedInUserId]
+        );
+
+        return res.status(200).send({ success: true, data: orders });
+
+    } catch (error) {
+        return res.status(500).send({success:false,message:error.message})
+    }
+}
+
+
+module.exports = {orderProduct, orderList}
