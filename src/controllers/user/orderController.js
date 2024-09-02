@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../../config/db')
 
 
-const orderProduct = async(req,res)=>{
+const orderProduct = async (req, res) => {
     try {
         const customerId = req.body.customer_id;
         const loggedInUserId = req.user.id
@@ -22,6 +22,16 @@ const orderProduct = async(req,res)=>{
                 success: false,
                 message: "Your cart is empty"
             });
+        }
+
+        for (let item of cartItems) {
+            const [[product]] = await db.query('SELECT `qty` FROM `products` WHERE `id` = ?', [item.product_id]);
+            if (product.qty < item.qty) {
+                return res.status(400).send({
+                    success: false,
+                    message: `Insufficient quantity for product ID: ${item.product_id}`
+                });
+            }
         }
 
         const [[lastOrder]] = await db.query('SELECT `id` FROM `orders` ORDER BY `id` DESC LIMIT 1');
@@ -58,7 +68,7 @@ const orderProduct = async(req,res)=>{
                 order_id: orderId,
                 product_id: item.product_id,
                 order_status_id: req.body.order_status_id,
-                name: item.product_id, // Adjust if necessary
+                name: item.product_id,
                 quantity: item.qty,
                 price: item.subtotal,
                 total: item.subtotal,
@@ -66,6 +76,10 @@ const orderProduct = async(req,res)=>{
             };
 
             await db.query('INSERT INTO `order_products` SET ?', orderProduct);
+
+            // Update product quantity in the database
+            await db.query('UPDATE `products` SET `qty` = `qty` - ? WHERE `id` = ?', [item.qty, item.product_id]);
+
             await db.query('DELETE FROM `carts` WHERE `customer_id` = ? AND `product_id` = ?', [customerId, item.product_id]);
         });
 
@@ -76,28 +90,75 @@ const orderProduct = async(req,res)=>{
             message: 'Order placed successfully',
             result: { id: orderId }
         });
-        
+
     } catch (error) {
-        return res.status(500).send({success:false,message:error.message})
+        return res.status(500).send({ success: false, message: error.message })
     }
 }
 
 
-const orderList = async(req,res)=>{
+const orderList = async (req, res) => {
     try {
         const loggedInUserId = req.user.id;
+        console.log(loggedInUserId);
 
         const [orders] = await db.query(
             'SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC LIMIT 5',
             [loggedInUserId]
         );
+        console.log(orders);
 
         return res.status(200).send({ success: true, data: orders });
 
     } catch (error) {
-        return res.status(500).send({success:false,message:error.message})
+        return res.status(500).send({ success: false, message: error.message })
+    }
+}
+
+const cancelOrder = async (req, res) => {
+    try {
+        const orderId = req.body.order_id;
+        const loggedInUserId = req.user.id;
+
+        // Retrieve the order to ensure it belongs to the logged-in user and is not already canceled
+        const [[order]] = await db.query('SELECT * FROM `orders` WHERE `id` = ? AND `customer_id` = ?', [orderId, loggedInUserId]);
+
+        if (!order) {
+            return res.status(404).send({
+                success: false,
+                message: "Order not found or you are not authorized to cancel this order"
+            });
+        }
+
+        if (order.order_status_id === 5) { 
+            return res.status(400).send({
+                success: false,
+                message: "This order has already been canceled"
+            });
+        }
+
+        // Update the order status to "Canceled" and set the cancellation date
+        await db.query('UPDATE `orders` SET `order_status_id` = ?, `cancel_date` = NOW() WHERE `id` = ?', [5, orderId]);
+
+        // Optionally, handle restocking of the products if necessary
+        const [orderProducts] = await db.query('SELECT * FROM `order_products` WHERE `order_id` = ?', [orderId]);
+
+        const restockPromises = orderProducts.map(async (product) => {
+            await db.query('UPDATE `products` SET `qty` = `qty` + ? WHERE `id` = ?', [product.quantity, product.product_id]);
+        });
+
+        await Promise.all(restockPromises);
+
+        res.status(200).send({
+            success: true,
+            message: 'Order canceled successfully'
+        });
+
+    } catch (error) {
+        return res.status(500).send({ success: false, message: error.message });
     }
 }
 
 
-module.exports = {orderProduct, orderList}
+
+module.exports = { orderProduct, orderList, cancelOrder }
