@@ -35,6 +35,10 @@ const bulkProductUpload = async (req, res) => {
         const BATCH_SIZE = 1000;
         let productBatch = [];
         let imageBatch = [];
+        let subStoreProductBatch = [];
+        let productVarientBatch = [];
+        let productRelatedBatch = [];
+        let productSeoBatch = [];
 
         for (let i = 0; i < 200; i++) {
             const product = csvData[i];
@@ -113,10 +117,14 @@ const bulkProductUpload = async (req, res) => {
                 const insertedProducts = await bulkInsertProducts(productBatch);  // Insert batch into DB
 
                 if (insertedProducts && insertedProducts.length > 0) {
-                    insertedProducts.forEach((insertedProduct, index) => {
+
+                    const randomVarient = ['varient1', 'varient2', 'varient3'];
+                    const randomRelatedProduct = ['related1', 'related2', 'related3'];
+
+                    for (let index = 0; index < insertedProducts.length; index++) {
+                        const insertedProduct = insertedProducts[index];
 
                         const metadataString = csvData[index]["metafields_product_info.0._metadata"];
-                        console.log("metadataString--", metadataString);
 
                         if (metadataString) {
                             try {
@@ -139,12 +147,99 @@ const bulkProductUpload = async (req, res) => {
                                 new Date()
                             ]);
                         }
-                    });
+
+                        const subStoreNames = csvData[index].substore.split(',').map(name => name.trim());
+
+                        for (let subStoreName of subStoreNames) {
+                            const subStore = await getSubStoreByName(subStoreName);
+
+                            if (subStore) {
+                                const subStoreId = subStore.id;
+
+                                // Create sub-store products entry
+                                subStoreProductBatch.push([
+                                    insertedProduct.id,
+                                    subStoreId,
+                                    subStore.sub_store_name,
+                                    product.price || 0,
+                                    product.selling_price || 0,
+                                    product.inventory_quantity || 0,
+                                    1,
+                                    1,
+                                    new Date(),
+                                    new Date()
+                                ]);
+                            }
+                        }
+
+                        const variantProductNames = csvData[index].product_varient
+
+                        for (let variantProductName of variantProductNames) {
+
+                            const varientProduct = await getProductByName(variantProductName)
+
+                            if (varientProduct) {
+                                const varientProductId = varientProduct.id
+
+                                productVarientBatch.push([
+                                    insertedProduct.id,
+                                    varientProductId,
+                                    new Date(),
+                                    new Date()
+                                ])
+
+                            }
+
+                        }
+
+                        const relatedProductNames = csvData[index].product_related
+
+                        for (let relatedProductName of relatedProductNames) {
+
+                            const relatedProduct = await getProductByName(relatedProductName)
+
+                            if (relatedProduct) {
+                                const relatedProductId = relatedProduct.id
+
+                                productVarientBatch.push([
+                                    insertedProduct.id,
+                                    relatedProductId,
+                                    new Date(),
+                                    new Date()
+                                ])
+
+                            }
+
+                        }
+
+                        productSeoBatch.push([
+                            insertedProduct.id,
+                            csvData[index].seo_title,
+                            csvData[index].seo_description,
+                            csvData[index].seo_keywords,
+                            csvData[index].seo_canonical_url,
+                            csvData[index].seo_sitemap_priority,
+                            csvData[index].seo_slug,
+                            csvData[index].seo_sitemap_frequency,
+                            new Date(),
+                            new Date()
+                        ])
+
+                    }
                     await bulkInsertProductImages(imageBatch)
+                    await bulkInsertSubStoreProducts(subStoreProductBatch);
+                    await bulkInsertRelatedProducts(productRelatedBatch);
+                    await bulkInsertvarientProducts(productVarientBatch);
+                    await bulkInsertProductsSeo(productSeoBatch)
                 }
 
-                productBatch = [];  // Clear the batch
+                // Clear the batch
+                productBatch = [];
                 imageBatch = [];
+                subStoreProductBatch = [];
+                productRelatedBatch = [];
+                productVarientBatch = [];
+                productSeoBatch = [];
             }
 
         }
@@ -154,7 +249,9 @@ const bulkProductUpload = async (req, res) => {
 
             if (insertedProducts && insertedProducts.length > 0) {
                 // Insert remaining product images
-                insertedProducts.forEach((insertedProduct, index) => {
+                for (let index = 0; index < insertedProducts.length; index++) {
+                    const insertedProduct = insertedProducts[index];
+
                     const metadataString = csvData[index]["metafields_product_info.0._metadata"];
                     if (metadataString) {
                         try {
@@ -176,10 +273,91 @@ const bulkProductUpload = async (req, res) => {
                             new Date()
                         ]);
                     }
-                });
+                    const subStoreNames = csvData[index].substore.split(',').map(name => name.trim());
+
+                    for (let subStoreName of subStoreNames) {
+                        const subStore = await getSubStoreByName(subStoreName);
+
+                        if (subStore) {
+                            const subStoreId = subStore.id;
+
+                            // Create sub-store products entry
+                            subStoreProductBatch.push([
+                                insertedProduct.id,
+                                subStoreId,
+                                subStore.sub_store_name,
+                                product.price || 0,
+                                product.selling_price || 0,
+                                product.inventory_quantity || 0,
+                                1,
+                                1,
+                                new Date(),
+                                new Date()
+                            ]);
+                        }
+
+                    }
+
+                    const variantProductNames = csvData[index].product_varient
+
+                    for (let variantProductName of variantProductNames) {
+
+                        const varientProduct = await getProductByName(variantProductName)
+
+                        if (varientProduct) {
+                            const varientProductId = varientProduct.id
+
+                            productVarientBatch.push([
+                                insertedProduct.id,
+                                varientProductId,
+                                new Date(),
+                                new Date()
+                            ])
+
+                        }
+
+                    }
+
+                    const relatedProductNames = csvData[index].product_related
+
+                    for (let relatedProductName of relatedProductNames) {
+
+                        const relatedProduct = await getProductByName(relatedProductName)
+
+                        if (relatedProduct) {
+                            const relatedProductId = relatedProduct.id
+
+                            productVarientBatch.push([
+                                insertedProduct.id,
+                                relatedProductId,
+                                new Date(),
+                                new Date()
+                            ])
+
+                        }
+
+                    }
+
+                    productSeoBatch.push([
+                        insertedProduct.id,
+                        csvData[index].seo_title,
+                        csvData[index].seo_description,
+                        csvData[index].seo_keywords,
+                        csvData[index].seo_canonical_url,
+                        csvData[index].seo_sitemap_priority,
+                        csvData[index].seo_slug,
+                        csvData[index].seo_sitemap_frequency,
+                        new Date(),
+                        new Date()
+                    ])
+
+                }
 
                 await bulkInsertProductImages(imageBatch);
-
+                await bulkInsertSubStoreProducts(subStoreProductBatch);
+                await bulkInsertRelatedProducts(productRelatedBatch);
+                await bulkInsertvarientProducts(productVarientBatch);
+                await bulkInsertProductsSeo(productSeoBatch);
             }
 
         }
@@ -421,6 +599,14 @@ async function insertNewBrandsAndCategories(brands, categories, brandMap, catego
 
 }
 
+async function getSubStoreByName(subStoreName) {
+    return await db.query('SELECT * FROM sub_stores WHERE sub_store_name = ?', [subStoreName]);
+}
+
+async function getProductByName(productName) {
+    return await db.query('SELECT * FROM products WHERE product_name = ?', [productName]);
+}
+
 
 const bulkInsertProducts = async (productValues) => {
     const insertQuery = `
@@ -480,5 +666,93 @@ const bulkInsertProductImages = async (imageValues) => {
         connection.release();  // Release the connection back to the pool
     }
 };
+
+const bulkInsertSubStoreProducts = async (substoreProductValues) => {
+    const insertQuery = `
+        INSERT INTO sub_stores_products (
+            products_id, sub_stores_id, sub_store_name, mrp, selling_price, qty, created_by, status, created_at, updated_at
+        ) VALUES ?`;
+
+    const connection = await db.getConnection(); // Get a connection from the pool
+
+    try {
+        await connection.beginTransaction();  // Begin a transaction
+
+        await connection.query(insertQuery, [substoreProductValues]);
+
+        await connection.commit();  // Commit the transaction
+    } catch (error) {
+        await connection.rollback();  // Roll back the transaction in case of an error
+        console.error('Error during bulk image insert:', error);
+    } finally {
+        connection.release();  // Release the connection back to the pool
+    }
+}
+
+const bulkInsertvarientProducts = async (varientProductValues) => {
+    const insertQuery = `
+        INSERT INTO products_variant (
+            product_id, varient_product_id, created_at, updated_at
+        ) VALUES ?`;
+
+    const connection = await db.getConnection(); // Get a connection from the pool
+
+    try {
+        await connection.beginTransaction();  // Begin a transaction
+
+        await connection.query(insertQuery, [varientProductValues]);
+
+        await connection.commit();  // Commit the transaction
+    } catch (error) {
+        await connection.rollback();  // Roll back the transaction in case of an error
+        console.error('Error during bulk image insert:', error);
+    } finally {
+        connection.release();  // Release the connection back to the pool
+    }
+}
+
+const bulkInsertRelatedProducts = async (relatedProductValues) => {
+    const insertQuery = `
+        INSERT INTO products_related (
+            products_id, related_id, created_at, updated_at
+        ) VALUES ?`;
+
+    const connection = await db.getConnection(); // Get a connection from the pool
+
+    try {
+        await connection.beginTransaction();  // Begin a transaction
+
+        await connection.query(insertQuery, [relatedProductValues]);
+
+        await connection.commit();  // Commit the transaction
+    } catch (error) {
+        await connection.rollback();  // Roll back the transaction in case of an error
+        console.error('Error during bulk related product insert:', error);
+    } finally {
+        connection.release();  // Release the connection back to the pool
+    }
+}
+
+const bulkInsertProductsSeo = async (productSeoValues) => {
+    const insertQuery = `
+        INSERT INTO products_seo (
+            product_id, seo_title, seo_description, seo_keywords, seo_canonical_url, seo_sitemap_priority, seo_slug, seo_sitemap_frequency, created_at, updated_at , created_at, updated_at
+        ) VALUES ?`;
+
+    const connection = await db.getConnection(); // Get a connection from the pool
+
+    try {
+        await connection.beginTransaction();  // Begin a transaction
+
+        await connection.query(insertQuery, [productSeoValues]);
+
+        await connection.commit();  // Commit the transaction
+    } catch (error) {
+        await connection.rollback();  // Roll back the transaction in case of an error
+        console.error('Error during bulk related product insert:', error);
+    } finally {
+        connection.release();  // Release the connection back to the pool
+    }
+}
 
 module.exports = { bulkProductUpload }
