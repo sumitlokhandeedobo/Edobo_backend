@@ -40,7 +40,7 @@ const bulkProductUpload = async (req, res) => {
         let productRelatedBatch = [];
         let productSeoBatch = [];
 
-        for (let i = 0; i < 200; i++) {
+        for (let i = 0; i < 50; i++) {
             const product = csvData[i];
 
             const categoryString = product.categories
@@ -71,6 +71,13 @@ const bulkProductUpload = async (req, res) => {
 
             function truncateString(str, maxLength) {
                 return str && str.length > maxLength ? str.substring(0, maxLength) : str;
+            }
+
+            function getRandomItems(array, numberOfItems) {
+                // Shuffle the array using a modern version of Fisher-Yates algorithm
+                const shuffledArray = array.sort(() => 0.5 - Math.random());
+                // Return the number of items requested
+                return shuffledArray.slice(0, numberOfItems);
             }
 
             const maxLength = 100;  // Define the maximum length based on your DB schema
@@ -118,8 +125,8 @@ const bulkProductUpload = async (req, res) => {
 
                 if (insertedProducts && insertedProducts.length > 0) {
 
-                    const randomVarient = ['varient1', 'varient2', 'varient3'];
-                    const randomRelatedProduct = ['related1', 'related2', 'related3'];
+                    const randomVarient = ['Product-1', 'Product-2', 'Product-3'];
+                    const randomRelatedProduct = ['Product-4', 'Product-5', 'Product-6'];
 
                     for (let index = 0; index < insertedProducts.length; index++) {
                         const insertedProduct = insertedProducts[index];
@@ -162,8 +169,8 @@ const bulkProductUpload = async (req, res) => {
                                     subStoreId,
                                     subStore.sub_store_name,
                                     product.price || 0,
-                                    product.selling_price || 0,
-                                    product.inventory_quantity || 0,
+                                    csvData[index].compare_price || 0,
+                                    csvData[index].inventory_quantity || 0,
                                     1,
                                     1,
                                     new Date(),
@@ -172,7 +179,8 @@ const bulkProductUpload = async (req, res) => {
                             }
                         }
 
-                        const variantProductNames = csvData[index].product_varient
+                        const variantProductNames = getRandomItems(randomVarient, 2)
+                        console.log("variantProductNames", variantProductNames);
 
                         for (let variantProductName of variantProductNames) {
 
@@ -192,7 +200,8 @@ const bulkProductUpload = async (req, res) => {
 
                         }
 
-                        const relatedProductNames = csvData[index].product_related
+                        const relatedProductNames = getRandomItems(randomRelatedProduct, 2)
+                        console.log("relatedProductNames", relatedProductNames);
 
                         for (let relatedProductName of relatedProductNames) {
 
@@ -201,11 +210,9 @@ const bulkProductUpload = async (req, res) => {
                             if (relatedProduct) {
                                 const relatedProductId = relatedProduct.id
 
-                                productVarientBatch.push([
+                                productRelatedBatch.push([
                                     insertedProduct.id,
-                                    relatedProductId,
-                                    new Date(),
-                                    new Date()
+                                    relatedProductId
                                 ])
 
                             }
@@ -246,6 +253,8 @@ const bulkProductUpload = async (req, res) => {
 
         if (productBatch.length > 0) {
             const insertedProducts = await bulkInsertProducts(productBatch);
+            const randomVarient = ['Product-1', 'Product-2', 'Product-3'];
+            const randomRelatedProduct = ['Product-4', 'Product-5', 'Product-6'];
 
             if (insertedProducts && insertedProducts.length > 0) {
                 // Insert remaining product images
@@ -286,9 +295,9 @@ const bulkProductUpload = async (req, res) => {
                                 insertedProduct.id,
                                 subStoreId,
                                 subStore.sub_store_name,
-                                product.price || 0,
-                                product.selling_price || 0,
-                                product.inventory_quantity || 0,
+                                csvData[index].price || 0,
+                                csvData[index].compare_price || 0,
+                                csvData[index].inventory_quantity || 0,
                                 1,
                                 1,
                                 new Date(),
@@ -298,7 +307,7 @@ const bulkProductUpload = async (req, res) => {
 
                     }
 
-                    const variantProductNames = csvData[index].product_varient
+                    const variantProductNames = getRandomItems(randomVarient, 2)
 
                     for (let variantProductName of variantProductNames) {
 
@@ -309,16 +318,14 @@ const bulkProductUpload = async (req, res) => {
 
                             productVarientBatch.push([
                                 insertedProduct.id,
-                                varientProductId,
-                                new Date(),
-                                new Date()
+                                varientProductId
                             ])
 
                         }
 
                     }
 
-                    const relatedProductNames = csvData[index].product_related
+                    const relatedProductNames = getRandomItems(randomRelatedProduct, 2)
 
                     for (let relatedProductName of relatedProductNames) {
 
@@ -327,11 +334,9 @@ const bulkProductUpload = async (req, res) => {
                         if (relatedProduct) {
                             const relatedProductId = relatedProduct.id
 
-                            productVarientBatch.push([
+                            productRelatedBatch.push([
                                 insertedProduct.id,
-                                relatedProductId,
-                                new Date(),
-                                new Date()
+                                relatedProductId
                             ])
 
                         }
@@ -600,11 +605,13 @@ async function insertNewBrandsAndCategories(brands, categories, brandMap, catego
 }
 
 async function getSubStoreByName(subStoreName) {
-    return await db.query('SELECT * FROM sub_stores WHERE sub_store_name = ?', [subStoreName]);
+    const [rows] = await db.query('SELECT * FROM sub_stores WHERE sub_store_name = ?', [subStoreName]);
+    return rows[0];
 }
 
 async function getProductByName(productName) {
-    return await db.query('SELECT * FROM products WHERE product_name = ?', [productName]);
+    const [rows] = await db.query('SELECT * FROM products WHERE product_name = ?', [productName]);
+    return rows[0];
 }
 
 
@@ -692,7 +699,7 @@ const bulkInsertSubStoreProducts = async (substoreProductValues) => {
 const bulkInsertvarientProducts = async (varientProductValues) => {
     const insertQuery = `
         INSERT INTO products_variant (
-            product_id, varient_product_id, created_at, updated_at
+            product_id, varient_product_id
         ) VALUES ?`;
 
     const connection = await db.getConnection(); // Get a connection from the pool
@@ -705,7 +712,7 @@ const bulkInsertvarientProducts = async (varientProductValues) => {
         await connection.commit();  // Commit the transaction
     } catch (error) {
         await connection.rollback();  // Roll back the transaction in case of an error
-        console.error('Error during bulk image insert:', error);
+        console.error('Error during bulk product varient insert:', error);
     } finally {
         connection.release();  // Release the connection back to the pool
     }
@@ -714,7 +721,7 @@ const bulkInsertvarientProducts = async (varientProductValues) => {
 const bulkInsertRelatedProducts = async (relatedProductValues) => {
     const insertQuery = `
         INSERT INTO products_related (
-            products_id, related_id, created_at, updated_at
+            products_id, related_id
         ) VALUES ?`;
 
     const connection = await db.getConnection(); // Get a connection from the pool
@@ -736,7 +743,7 @@ const bulkInsertRelatedProducts = async (relatedProductValues) => {
 const bulkInsertProductsSeo = async (productSeoValues) => {
     const insertQuery = `
         INSERT INTO products_seo (
-            product_id, seo_title, seo_description, seo_keywords, seo_canonical_url, seo_sitemap_priority, seo_slug, seo_sitemap_frequency, created_at, updated_at , created_at, updated_at
+            product_id, seo_title, seo_description, seo_keywords, seo_canonical_url, seo_sitemap_priority, seo_slug, seo_sitemap_frequency, created_at, updated_at
         ) VALUES ?`;
 
     const connection = await db.getConnection(); // Get a connection from the pool
@@ -749,7 +756,7 @@ const bulkInsertProductsSeo = async (productSeoValues) => {
         await connection.commit();  // Commit the transaction
     } catch (error) {
         await connection.rollback();  // Roll back the transaction in case of an error
-        console.error('Error during bulk related product insert:', error);
+        console.error('Error during bulk product_seo insert:', error);
     } finally {
         connection.release();  // Release the connection back to the pool
     }
