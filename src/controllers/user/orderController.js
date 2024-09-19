@@ -130,7 +130,7 @@ const cancelOrder = async (req, res) => {
             });
         }
 
-        if (order.order_status_id === 5) { 
+        if (order.order_status_id === 5) {
             return res.status(400).send({
                 success: false,
                 message: "This order has already been canceled"
@@ -159,6 +159,37 @@ const cancelOrder = async (req, res) => {
     }
 }
 
+const orderStatus = async (req, res) => {
+    try {
+        const loggedInUserId = req.user.id;
+        const orderId = req.query.orderId;
 
+        const [orderRows] = await db.query('SELECT * FROM orders WHERE id = ? AND customer_id = ?', [orderId, loggedInUserId])
 
-module.exports = { orderProduct, orderList, cancelOrder }
+        if (orderRows.length === 0) {
+            return res.status(404).send({ success: false, message: 'Order not found or you do not have permission to view this order.' });
+        }
+
+        const order = orderRows[0];
+        const [statusRows] = await db.query('SELECT * FROM order_statuses WHERE id = ?', [order.order_status_id]);
+
+        if (statusRows.length === 0) {
+            return res.status(404).send({ success: false, message: 'Order status not found.' });
+        }
+
+        const status = statusRows[0];
+
+        // Combine order details and status
+        const result = {
+            order: { ...order },
+            status: { ...status }
+        };
+
+        return res.status(200).send({ success: true, data: result });
+
+    } catch (error) {
+        return res.status(500).send({ success: false, message: error.message });
+    }
+}
+
+module.exports = { orderProduct, orderList, cancelOrder, orderStatus }
