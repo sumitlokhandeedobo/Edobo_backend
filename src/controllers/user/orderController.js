@@ -192,4 +192,46 @@ const orderStatus = async (req, res) => {
     }
 }
 
-module.exports = { orderProduct, orderList, cancelOrder, orderStatus }
+const getDeliveryTimeSlot = async (req, res) => {
+    try {
+        const { delivery_name, substore_id } = req.query;
+
+        if (!delivery_name || !substore_id) {
+            return res.status(400).send({ success: false, message: 'delivery_name and substore_id are required' });
+        }
+
+        const deliveryTypeQuery = `
+            SELECT id as delivery_types_id FROM delivery_type_masters 
+            WHERE delivery_name = ? AND FIND_IN_SET(?, substore_id) AND status = 'active'
+        `;
+
+        const [deliveryTypeResults] = await db.query(deliveryTypeQuery, [delivery_name, substore_id])
+
+        if (deliveryTypeResults.length === 0) {
+            return res.status(404).send({ success: false, message: 'Delivery type not found' });
+        }
+
+        const delivery_types_id = deliveryTypeResults[0].delivery_types_id;
+
+        const timeSlotsQuery = `
+            SELECT day, start_time, end_time, cut_off, order_limit 
+            FROM delivery_time_slots 
+            WHERE delivery_type_masters_id = ? AND status = 'active'
+        `;
+
+        const [timeSlotsResults] = await db.query(timeSlotsQuery, [delivery_types_id]);
+
+        if (timeSlotsResults.length === 0) {
+            return res.status(404).send({ success: false, message: 'No time slots available' });
+        }
+
+        return res.status(200).send({ success: true, message: 'Time slots fetched successfully', data: timeSlotsResults });
+
+    } catch (error) {
+        return res.status(500).send({ success: false, message: error.message });
+    }
+};
+
+
+
+module.exports = { orderProduct, orderList, cancelOrder, orderStatus, getDeliveryTimeSlot }
