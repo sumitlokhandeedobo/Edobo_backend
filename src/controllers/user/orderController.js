@@ -216,7 +216,7 @@ const getDeliveryTimeSlot = async (req, res) => {
         const timeSlotsQuery = `
             SELECT day, start_time, end_time, cut_off, order_limit 
             FROM delivery_time_slots 
-            WHERE delivery_type_masters_id = ? AND status = 'active'
+            WHERE delivery_type_masters_id = ? AND status = '1'
         `;
 
         const [timeSlotsResults] = await db.query(timeSlotsQuery, [delivery_types_id]);
