@@ -102,11 +102,66 @@ const orderList = async (req, res) => {
         const loggedInUserId = req.user.id;
         console.log(loggedInUserId);
 
-        const [orders] = await db.query(
-            'SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC LIMIT 5',
+        const [rows] = await db.query(
+            `SELECT o.id as orderId, o.customer_id, o.grand_total, o.created_at, 
+                    op.product_id, op.name as productName, op.quantity, op.price as orderPrice, op.total as orderTotal, op.order_status_id,
+                    p.product_name, p.compare_price, p.discount, p.short_description, p.long_description, p.qty, p.thumb_image, p.thumb_image_url, p.weight_name, p.weight_value, p.sku, p.alias, p.barcode
+            FROM orders o
+            JOIN order_products op ON o.id = op.order_id
+            JOIN products p ON op.product_id = p.id
+            WHERE o.customer_id = ?
+            ORDER BY o.id DESC LIMIT 5`,
             [loggedInUserId]
         );
-        console.log(orders);
+        
+        // Process to group products by orderId
+        const orders = rows.reduce((acc, row) => {
+            const {
+                orderId, customer_id, grand_total, created_at,
+                product_id, productName, quantity, orderPrice, orderTotal, order_status_id,
+                product_name, compare_price, discount, short_description, long_description, qty, thumb_image, thumb_image_url, weight_name, weight_value, sku, alias, barcode
+            } = row;
+            
+            // Check if the order already exists in the accumulator
+            let order = acc.find(o => o.orderId === orderId);
+            
+            if (!order) {
+                // If order doesn't exist, create a new order entry
+                order = {
+                    orderId,
+                    customer_id,
+                    grand_total,
+                    created_at,
+                    products: []  // Initialize products array
+                };
+                acc.push(order);
+            }
+            
+            // Add the product to the order's products array
+            order.products.push({
+                product_id,
+                productName,
+                quantity,
+                orderPrice,
+                orderTotal,
+                order_status_id,
+                product_name,
+                compare_price,
+                discount,
+                short_description,
+                long_description,
+                qty,
+                thumb_image,
+                thumb_image_url,
+                weight_name,
+                weight_value,
+                sku,
+                alias,
+                barcode
+            });
+
+            return acc;
+        }, []);
 
         return res.status(200).send({ success: true, data: orders });
 
