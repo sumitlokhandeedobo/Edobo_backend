@@ -1,6 +1,12 @@
 const mysql = require('mysql2');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../../config/db')
+const Razorpay = require('razorpay');
+
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_API_KEY_ID,
+    key_secret: process.env.RAZORPAY_API_SECRET
+});
 
 
 const orderProduct = async (req, res) => {
@@ -23,7 +29,35 @@ const orderProduct = async (req, res) => {
                 message: "Your cart is empty"
             });
         }
+        console.log("cartItems--", cartItems);
 
+        const totalAmount = cartItems.reduce((total, item) => total + item.subtotal, 0);
+
+        console.log("totalAmount", totalAmount);
+
+        const [[lastOrder]] = await db.query('SELECT `id` FROM `orders` ORDER BY `id` DESC LIMIT 1');
+        const lastInvoiceID = lastOrder ? lastOrder.id : 0;
+        const newInvoiceID = lastInvoiceID + 1;
+
+        const receipt = `receipt#${newInvoiceID}`.slice(0, 40);
+
+        const razorpayOrder = await razorpay.orders.create({
+            amount: totalAmount * 100, // amount in paise
+            currency: 'INR',
+            receipt: receipt,
+            payment_capture: 1 // auto capture
+        });
+        console.log("razorpayOrder", razorpayOrder);
+
+        // If the Razorpay order creation fails
+        if (!razorpayOrder || !razorpayOrder.id) {
+            return res.status(500).send({
+                success: false,
+                message: "Error creating Razorpay order"
+            });
+        }
+
+        /*
         for (let item of cartItems) {
             const [[product]] = await db.query('SELECT `qty` FROM `products` WHERE `id` = ?', [item.product_id]);
             if (product.qty < item.qty) {
@@ -34,14 +68,10 @@ const orderProduct = async (req, res) => {
             }
         }
 
-        const [[lastOrder]] = await db.query('SELECT `id` FROM `orders` ORDER BY `id` DESC LIMIT 1');
-        const lastInvoiceID = lastOrder ? lastOrder.id : 0;
-        const newInvoiceID = lastInvoiceID + 1;
-
         // Create a new order
         const newOrder = {
             invoice_no: `Inv${newInvoiceID}`,
-            transaction_id: uuidv4(),
+            transaction_id: razorpayOrder.id,
             payment_mode: req.body.payment_mode,
             store_id: req.body.store_id,
             customer_id: customerId,
@@ -84,14 +114,19 @@ const orderProduct = async (req, res) => {
         });
 
         await Promise.all(orderPromises);
+        */
 
         res.status(200).send({
             success: true,
-            message: 'Order placed successfully',
-            result: { id: orderId }
+            message: 'Order created successfully',
+            // result: {
+            //     id: orderId,
+            razorpayOrderId: razorpayOrder.id,
+            // amount: totalAmount 
         });
 
     } catch (error) {
+        console.log(error);
         return res.status(500).send({ success: false, message: error.message })
     }
 }
@@ -102,66 +137,11 @@ const orderList = async (req, res) => {
         const loggedInUserId = req.user.id;
         console.log(loggedInUserId);
 
-        const [rows] = await db.query(
-            `SELECT o.id as orderId, o.customer_id, o.grand_total, o.created_at, 
-                    op.product_id, op.name as productName, op.quantity, op.price as orderPrice, op.total as orderTotal, op.order_status_id,
-                    p.product_name, p.compare_price, p.discount, p.short_description, p.long_description, p.qty, p.thumb_image, p.thumb_image_url, p.weight_name, p.weight_value, p.sku, p.alias, p.barcode
-            FROM orders o
-            JOIN order_products op ON o.id = op.order_id
-            JOIN products p ON op.product_id = p.id
-            WHERE o.customer_id = ?
-            ORDER BY o.id DESC LIMIT 5`,
+        const [orders] = await db.query(
+            'SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC LIMIT 5',
             [loggedInUserId]
         );
-        
-        // Process to group products by orderId
-        const orders = rows.reduce((acc, row) => {
-            const {
-                orderId, customer_id, grand_total, created_at,
-                product_id, productName, quantity, orderPrice, orderTotal, order_status_id,
-                product_name, compare_price, discount, short_description, long_description, qty, thumb_image, thumb_image_url, weight_name, weight_value, sku, alias, barcode
-            } = row;
-            
-            // Check if the order already exists in the accumulator
-            let order = acc.find(o => o.orderId === orderId);
-            
-            if (!order) {
-                // If order doesn't exist, create a new order entry
-                order = {
-                    orderId,
-                    customer_id,
-                    grand_total,
-                    created_at,
-                    products: []  // Initialize products array
-                };
-                acc.push(order);
-            }
-            
-            // Add the product to the order's products array
-            order.products.push({
-                product_id,
-                productName,
-                quantity,
-                orderPrice,
-                orderTotal,
-                order_status_id,
-                product_name,
-                compare_price,
-                discount,
-                short_description,
-                long_description,
-                qty,
-                thumb_image,
-                thumb_image_url,
-                weight_name,
-                weight_value,
-                sku,
-                alias,
-                barcode
-            });
-
-            return acc;
-        }, []);
+        console.log(orders);
 
         return res.status(200).send({ success: true, data: orders });
 
