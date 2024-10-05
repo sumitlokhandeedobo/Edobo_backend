@@ -8,9 +8,9 @@ const webhook = async (req, res) => {
     console.log("Webhook triggered");
     try {
         const { body } = req;
-        console.log("Received body:", body);
+        //console.log("Received body:", body);
         const signature = req.headers['x-razorpay-signature'];
-        console.log("Signature:", signature);
+        //console.log("Signature:", signature);
 
         // Generate the signature using the Razorpay key secret
         const generatedSignature = crypto
@@ -18,31 +18,34 @@ const webhook = async (req, res) => {
             .update(JSON.stringify(body))
             .digest('hex');
 
-        console.log("generatedSignature--", generatedSignature);
+        //console.log("generatedSignature--", generatedSignature);
 
 
         // Verify the webhook signature
         if (generatedSignature !== signature) {
+            console.log("invalid signature");
             return res.status(400).send({
                 success: false,
                 message: "Invalid signature"
             });
         }
 
+        //console.log("paymentEntioty---", body.payload.payment.entity);
         // Handle the payment event
         if (body.event === 'payment.captured') {
             const paymentId = body.payload.payment.entity.id;
             const razorpayOrderId = body.payload.payment.entity.order_id;
             const amount = body.payload.payment.entity.amount;
             const notes = body.payload.payment.entity.notes;  // Accessing the metadata
+            console.log("notes--", notes);
 
             // Retrieve customerId, storeId, and cartItems from the metadata
             const customerId = notes.customerId;
             const storeId = notes.storeId;
             const cartItems = JSON.parse(notes.cartItems);  // Parse the cart items string
 
-            console.log(`Payment captured: ${paymentId}, Razorpay Order ID: ${razorpayOrderId}, Amount: ${amount}`);
-            console.log(`Customer ID: ${customerId}, Store ID: ${storeId}, Cart Items:`, cartItems);
+            //console.log(`Payment captured: ${paymentId}, Razorpay Order ID: ${razorpayOrderId}, Amount: ${amount}`);
+            //console.log(`Customer ID: ${customerId}, Store ID: ${storeId}, Cart Items:`, cartItems);
 
             // Create a new order in the database using this data
             const [[lastOrder]] = await db.query('SELECT `id` FROM `orders` ORDER BY `id` DESC LIMIT 1');
@@ -55,7 +58,6 @@ const webhook = async (req, res) => {
                 payment_mode: 'razorpay',
                 store_id: storeId,
                 customer_id: customerId,
-                // Populate remaining fields (firstname, lastname, etc.) as needed
                 total: amount / 100,  // Amount from Razorpay is in paise, convert to rupees
             };
 
@@ -101,9 +103,10 @@ const webhook = async (req, res) => {
                 message: `Payment failed. Error Code: ${paymentError}, Description: ${errorDescription}`
             });
         }
-        
+
         res.status(200).send({ success: true });
     } catch (error) {
+        console.log("errror", error.message);
         return res.status(500).send({ success: false, message: error.message })
     }
 }
