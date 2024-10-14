@@ -163,7 +163,7 @@ const orderProduct = async (req, res) => {
         const receipt = `receipt#${newInvoiceID}`.slice(0, 40);
 
         // Check if payment mode is Cash on Delivery (COD)
-        if (req.body.payment_mode === 'COD') {
+        if (req.body.payment_mode === 'Cash on delivery') {
             // Handle Cash on Delivery order creation logic here
 
             const newOrder = {
