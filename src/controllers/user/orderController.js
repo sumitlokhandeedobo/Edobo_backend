@@ -9,10 +9,132 @@ const razorpay = new Razorpay({
 });
 
 
+// const orderProduct = async (req, res) => {
+//     try {
+//         const customerId = req.body.customer_id;
+//         const loggedInUserId = req.user.id
+
+//         if (customerId !== loggedInUserId) {
+//             return res.status(403).send({
+//                 success: false,
+//                 message: "Unauthorized: You cannot place orders for other users"
+//             });
+//         }
+
+//         const [cartItems] = await db.query('SELECT * FROM `carts` WHERE `customer_id` = ?', [customerId]);
+
+//         if (cartItems.length === 0) {
+//             return res.status(400).send({
+//                 success: false,
+//                 message: "Your cart is empty"
+//             });
+//         }
+//         console.log("cartItems--", cartItems);
+
+//         const totalAmount = cartItems.reduce((total, item) => total + item.subtotal, 0);
+
+//         console.log("totalAmount", totalAmount);
+
+//         const [[lastOrder]] = await db.query('SELECT `id` FROM `orders` ORDER BY `id` DESC LIMIT 1');
+//         const lastInvoiceID = lastOrder ? lastOrder.id : 0;
+//         const newInvoiceID = lastInvoiceID + 1;
+
+//         const receipt = `receipt#${newInvoiceID}`.slice(0, 40);
+
+//         const razorpayOrder = await razorpay.orders.create({
+//             amount: totalAmount * 100, // amount in paise
+//             currency: 'INR',
+//             receipt: receipt,
+//             payment_capture: 1 // auto capture
+//         });
+//         console.log("razorpayOrder", razorpayOrder);
+
+//         // If the Razorpay order creation fails
+//         if (!razorpayOrder || !razorpayOrder.id) {
+//             return res.status(500).send({
+//                 success: false,
+//                 message: "Error creating Razorpay order"
+//             });
+//         }
+
+//         /*
+//         for (let item of cartItems) {
+//             const [[product]] = await db.query('SELECT `qty` FROM `products` WHERE `id` = ?', [item.product_id]);
+//             if (product.qty < item.qty) {
+//                 return res.status(400).send({
+//                     success: false,
+//                     message: `Insufficient quantity for product ID: ${item.product_id}`
+//                 });
+//             }
+//         }
+
+//         // Create a new order
+//         const newOrder = {
+//             invoice_no: `Inv${newInvoiceID}`,
+//             transaction_id: razorpayOrder.id,
+//             payment_mode: req.body.payment_mode,
+//             store_id: req.body.store_id,
+//             customer_id: customerId,
+//             firstname: req.body.firstname,
+//             order_status_id: req.body.order_status_id,
+//             lastname: req.body.lastname,
+//             email: req.body.email,
+//             phone_number: req.body.phone_number,
+//             customer_shipping_addess: req.body.shipping_address,
+//             customer_city: req.body.shipping_city,
+//             pincode: req.body.shipping_postcode,
+//             day_id: req.body.day_id,
+//             time_slot: req.body.time_slot,
+//             total: req.body.total,
+//             delivery_type_id: req.body.delivery_type_id
+//         };
+
+//         const [orderResult] = await db.query('INSERT INTO `orders` SET ?', newOrder);
+//         const orderId = orderResult.insertId;
+
+//         // Process each item in the cart
+//         const orderPromises = cartItems.map(async (item) => {
+//             const orderProduct = {
+//                 order_id: orderId,
+//                 product_id: item.product_id,
+//                 order_status_id: req.body.order_status_id,
+//                 name: item.product_id,
+//                 quantity: item.qty,
+//                 price: item.subtotal,
+//                 total: item.subtotal,
+//                 tax: item.igst || 0
+//             };
+
+//             await db.query('INSERT INTO `order_products` SET ?', orderProduct);
+
+//             // Update product quantity in the database
+//             await db.query('UPDATE `products` SET `qty` = `qty` - ? WHERE `id` = ?', [item.qty, item.product_id]);
+
+//             await db.query('DELETE FROM `carts` WHERE `customer_id` = ? AND `product_id` = ?', [customerId, item.product_id]);
+//         });
+
+//         await Promise.all(orderPromises);
+//         */
+
+//         res.status(200).send({
+//             success: true,
+//             message: 'Order created successfully',
+//             // result: {
+//             //     id: orderId,
+//             razorpayOrderId: razorpayOrder.id,
+//             // amount: totalAmount 
+//         });
+
+//     } catch (error) {
+//         console.log(error);
+//         return res.status(500).send({ success: false, message: error.message })
+//     }
+// }
+
 const orderProduct = async (req, res) => {
     try {
         const customerId = req.body.customer_id;
-        const loggedInUserId = req.user.id
+        const loggedInUserId = req.user.id;
 
         if (customerId !== loggedInUserId) {
             return res.status(403).send({
@@ -29,107 +151,103 @@ const orderProduct = async (req, res) => {
                 message: "Your cart is empty"
             });
         }
+
         console.log("cartItems--", cartItems);
 
         const totalAmount = cartItems.reduce((total, item) => total + item.subtotal, 0);
-
         console.log("totalAmount", totalAmount);
 
         const [[lastOrder]] = await db.query('SELECT `id` FROM `orders` ORDER BY `id` DESC LIMIT 1');
         const lastInvoiceID = lastOrder ? lastOrder.id : 0;
         const newInvoiceID = lastInvoiceID + 1;
-
         const receipt = `receipt#${newInvoiceID}`.slice(0, 40);
 
-        const razorpayOrder = await razorpay.orders.create({
-            amount: totalAmount * 100, // amount in paise
-            currency: 'INR',
-            receipt: receipt,
-            payment_capture: 1 // auto capture
-        });
-        console.log("razorpayOrder", razorpayOrder);
+        // Check if payment mode is Cash on Delivery (COD)
+        if (req.body.payment_mode === 'COD') {
+            // Handle Cash on Delivery order creation logic here
 
-        // If the Razorpay order creation fails
-        if (!razorpayOrder || !razorpayOrder.id) {
-            return res.status(500).send({
-                success: false,
-                message: "Error creating Razorpay order"
-            });
-        }
-
-        /*
-        for (let item of cartItems) {
-            const [[product]] = await db.query('SELECT `qty` FROM `products` WHERE `id` = ?', [item.product_id]);
-            if (product.qty < item.qty) {
-                return res.status(400).send({
-                    success: false,
-                    message: `Insufficient quantity for product ID: ${item.product_id}`
-                });
-            }
-        }
-
-        // Create a new order
-        const newOrder = {
-            invoice_no: `Inv${newInvoiceID}`,
-            transaction_id: razorpayOrder.id,
-            payment_mode: req.body.payment_mode,
-            store_id: req.body.store_id,
-            customer_id: customerId,
-            firstname: req.body.firstname,
-            order_status_id: req.body.order_status_id,
-            lastname: req.body.lastname,
-            email: req.body.email,
-            phone_number: req.body.phone_number,
-            customer_shipping_addess: req.body.shipping_address,
-            customer_city: req.body.shipping_city,
-            pincode: req.body.shipping_postcode,
-            day_id: req.body.day_id,
-            time_slot: req.body.time_slot,
-            total: req.body.total,
-            delivery_type_id: req.body.delivery_type_id
-        };
-
-        const [orderResult] = await db.query('INSERT INTO `orders` SET ?', newOrder);
-        const orderId = orderResult.insertId;
-
-        // Process each item in the cart
-        const orderPromises = cartItems.map(async (item) => {
-            const orderProduct = {
-                order_id: orderId,
-                product_id: item.product_id,
+            const newOrder = {
+                invoice_no: `Inv${newInvoiceID}`,
+                transaction_id: null,  // No transaction ID for COD
+                payment_mode: req.body.payment_mode, // Cash on Delivery
+                store_id: req.body.store_id,
+                customer_id: customerId,
+                firstname: req.body.firstname,
                 order_status_id: req.body.order_status_id,
-                name: item.product_id,
-                quantity: item.qty,
-                price: item.subtotal,
-                total: item.subtotal,
-                tax: item.igst || 0
+                lastname: req.body.lastname,
+                email: req.body.email,
+                phone_number: req.body.phone_number,
+                customer_shipping_addess: req.body.shipping_address,
+                customer_city: req.body.shipping_city,
+                pincode: req.body.shipping_postcode,
+                day_id: req.body.day_id,
+                time_slot: req.body.time_slot,
+                total: totalAmount,
+                delivery_type_id: req.body.delivery_type_id
             };
 
-            await db.query('INSERT INTO `order_products` SET ?', orderProduct);
+            const [orderResult] = await db.query('INSERT INTO `orders` SET ?', newOrder);
+            const orderId = orderResult.insertId;
 
-            // Update product quantity in the database
-            await db.query('UPDATE `products` SET `qty` = `qty` - ? WHERE `id` = ?', [item.qty, item.product_id]);
+            // Process each item in the cart
+            const orderPromises = cartItems.map(async (item) => {
+                const orderProduct = {
+                    order_id: orderId,
+                    product_id: item.product_id,
+                    order_status_id: req.body.order_status_id,
+                    name: item.product_id,
+                    quantity: item.qty,
+                    price: item.subtotal,
+                    total: item.subtotal,
+                    tax: item.igst || 0
+                };
 
-            await db.query('DELETE FROM `carts` WHERE `customer_id` = ? AND `product_id` = ?', [customerId, item.product_id]);
-        });
+                await db.query('INSERT INTO `order_products` SET ?', orderProduct);
 
-        await Promise.all(orderPromises);
-        */
+                // Update product quantity in the database
+                await db.query('UPDATE `products` SET `qty` = `qty` - ? WHERE `id` = ?', [item.qty, item.product_id]);
 
-        res.status(200).send({
-            success: true,
-            message: 'Order created successfully',
-            // result: {
-            //     id: orderId,
-            razorpayOrderId: razorpayOrder.id,
-            // amount: totalAmount 
-        });
+                // Remove the item from the cart
+                await db.query('DELETE FROM `carts` WHERE `customer_id` = ? AND `product_id` = ?', [customerId, item.product_id]);
+            });
 
+            await Promise.all(orderPromises);
+
+            return res.status(200).send({
+                success: true,
+                message: 'Order created successfully (Cash on Delivery)',
+                orderId: orderId
+            });
+
+        } else {
+            // Handle online payment (Razorpay) flow
+            const razorpayOrder = await razorpay.orders.create({
+                amount: totalAmount * 100, // amount in paise
+                currency: 'INR',
+                receipt: receipt,
+                payment_capture: 1 // auto capture
+            });
+            console.log("razorpayOrder", razorpayOrder);
+
+            // If the Razorpay order creation fails
+            if (!razorpayOrder || !razorpayOrder.id) {
+                return res.status(500).send({
+                    success: false,
+                    message: "Error creating Razorpay order"
+                });
+            }
+
+            res.status(200).send({
+                success: true,
+                message: 'Order created successfully (Online Payment)',
+                razorpayOrderId: razorpayOrder.id,
+            });
+        }
     } catch (error) {
         console.log(error);
-        return res.status(500).send({ success: false, message: error.message })
+        return res.status(500).send({ success: false, message: error.message });
     }
-}
+};
 
 
 const orderList = async (req, res) => {
