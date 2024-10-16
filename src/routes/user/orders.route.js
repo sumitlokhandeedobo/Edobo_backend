@@ -8,15 +8,6 @@ const {
 } = require("../../controllers/user/orderController");
 const { authenticateToken } = require("../../middleware/authenticate");
 const ordersRouter = express();
-// const express = require("express");
-const router = express.Router();
-
-// Example route: /api/user
-router.get("/user", (req, res) => {
-  res.status(200).json({ message: "User endpoint works!" });
-});
-
-module.exports = { ordersRouter: router };
 
 ordersRouter.post("/order-place", authenticateToken, orderProduct);
 

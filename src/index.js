@@ -6,7 +6,6 @@ const { adminProductsRouter } = require("./routes/admin/products.route");
 const adminUserRouter = require("./routes/admin/users.route");
 const { dashboardRouter } = require("./routes/admin/dashboard.route");
 const cors = require("cors");
-const { webhook } = require("./controllers/common/webhookController");
 
 const app = express();
 const port = 3000;
@@ -22,11 +21,6 @@ app.use("/admin", adminOrdersRouter);
 app.use("/admin", adminProductsRouter);
 app.use("/admin", adminUserRouter);
 app.use("/admin", dashboardRouter);
-// app.use("/api", ordersRouter);
-
-//RazorPay webhook
-
-app.use("/razorpaywebhook", webhook);
 
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
