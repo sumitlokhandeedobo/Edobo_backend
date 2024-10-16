@@ -15,6 +15,10 @@ app.use(multer().any());
 app.use(express.json());
 app.use(cors());
 
+// Test API Endpoint
+app.get("/test", (req, res) => {
+  res.json({ message: "Node.js backend is running successfully!" });
+});
 app.use("/user", ordersRouter);
 
 app.use("/admin", adminOrdersRouter);
