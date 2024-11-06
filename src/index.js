@@ -19,6 +19,10 @@ app.use(cors());
 app.get("/test", (req, res) => {
   res.json({ message: "Node.js backend server is running successfullyyy!" });
 });
+
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Test API is working!" });
+});
 app.use("/user", ordersRouter);
 
 app.use("/admin", adminOrdersRouter);
