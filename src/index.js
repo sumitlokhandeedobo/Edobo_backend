@@ -26,6 +26,13 @@ app.get("/api/test", (req, res) => {
       "Test API is working!,Node.js backend server is running successfullyyy!",
   });
 });
+
+app.get("/api/test2", (req, res) => {
+  res.json({
+    message:
+      "Test API is working!,Node.js backend server is running successfullyyy22!",
+  });
+});
 app.use("/user", ordersRouter);
 
 app.use("/admin", adminOrdersRouter);
